@@ -1,11 +1,12 @@
-const { Pool } = require('pg');
+import pkg from 'pg';
+const { Pool } = pkg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  host: 'localhost',
+  user: 'postgres',
+  password: 'Aditya18',   // STRING only
+  database: 'unipro_db',
+  port: 5432,
 });
 
-pool.on('connect', () => {
-  console.log('PostgreSQL connected');
-});
-
-module.exports = pool;
+export default pool;
