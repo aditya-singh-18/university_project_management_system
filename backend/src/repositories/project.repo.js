@@ -1,0 +1,250 @@
+import pool from '../config/db.js';
+
+/* =========================
+   FIND PROJECT
+========================= */
+export const findProjectById = async (projectId) => {
+  const q = `SELECT * FROM projects WHERE project_id = $1`;
+  const r = await pool.query(q, [projectId]);
+  return r.rows[0];
+};
+
+/* =========================
+   CREATE PROJECT (STUDENT)
+========================= */
+export const insertProject = async ({
+  projectId,
+  title,
+  description,
+  techStack,
+}) => {
+  const q = `
+    INSERT INTO projects (
+      project_id,
+      title,
+      description,
+      tech_stack
+    )
+    VALUES ($1, $2, $3, $4)
+  `;
+  await pool.query(q, [
+    projectId,
+    title,
+    description,
+    techStack,
+  ]);
+};
+
+/* =========================
+   ADMIN: ASSIGN MENTOR
+========================= */
+export const assignMentorToProject = async ({
+  projectId,
+  mentorEmployeeId,
+}) => {
+  const q = `
+    UPDATE projects
+    SET
+      mentor_employee_id = $2,
+      status = 'ASSIGNED_TO_MENTOR',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [projectId, mentorEmployeeId]);
+};
+
+/* =========================
+   MENTOR: REJECT PROJECT
+========================= */
+export const updateProjectStatusWithFeedback = async ({
+  projectId,
+  status,
+  mentorFeedback,
+}) => {
+  const q = `
+    UPDATE projects
+    SET
+      status = $2,
+      mentor_feedback = $3,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [projectId, status, mentorFeedback || null]);
+};
+
+/* =========================
+   MENTOR: APPROVE PROJECT
+   (sets approved_at)
+========================= */
+export const approveProjectByMentor = async (projectId) => {
+  const q = `
+    UPDATE projects
+    SET
+      status = 'APPROVED',
+      approved_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [projectId]);
+};
+
+/* =========================
+   ADMIN: VIEW PENDING PROJECTS
+========================= */
+export const getPendingProjects = async () => {
+  const q = `
+    SELECT
+      project_id,
+      title,
+      description,
+      tech_stack,
+      status,
+      created_at
+    FROM projects
+    WHERE status = 'PENDING'
+    ORDER BY created_at DESC
+  `;
+  const r = await pool.query(q);
+  return r.rows;
+};
+
+/* =========================
+   MENTOR: VIEW ASSIGNED PROJECTS
+========================= */
+export const getProjectsAssignedToMentor = async (mentorEmployeeId) => {
+  const q = `
+    SELECT
+      project_id,
+      title,
+      description,
+      tech_stack,
+      status,
+      created_at,
+      approved_at
+    FROM projects
+    WHERE mentor_employee_id = $1
+      AND status IN ('ASSIGNED_TO_MENTOR', 'RESUBMITTED', 'APPROVED')
+    ORDER BY created_at DESC
+  `;
+  const r = await pool.query(q, [mentorEmployeeId]);
+  return r.rows;
+};
+
+/* =========================
+   STUDENT: RESUBMIT PROJECT
+========================= */
+export const resubmitProject = async ({
+  projectId,
+  title,
+  description,
+  techStack,
+}) => {
+  const q = `
+    UPDATE projects
+    SET
+      title = $2,
+      description = $3,
+      tech_stack = $4,
+      status = 'RESUBMITTED',
+      mentor_feedback = NULL,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [
+    projectId,
+    title,
+    description,
+    techStack,
+  ]);
+};
+
+/* =========================
+   ADMIN: MANUAL ACTIVATE PROJECT
+========================= */
+export const activateProject = async (projectId) => {
+  const q = `
+    UPDATE projects
+    SET
+      status = 'ACTIVE',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [projectId]);
+};
+
+/* =========================
+   AUTO ACTIVATE (AFTER 24h)
+========================= */
+export const autoActivateApprovedProjects = async () => {
+  const q = `
+    UPDATE projects
+    SET
+      status = 'ACTIVE',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE
+      status = 'APPROVED'
+      AND approved_at <= NOW() - INTERVAL '24 HOURS'
+  `;
+  await pool.query(q);
+};
+
+// =========================
+// STUDENT: GET MY PROJECTS
+// =========================
+export const getProjectsOfStudent = async (enrollmentId) => {
+  const q = `
+    SELECT DISTINCT
+      p.project_id,
+      p.title,
+      p.status,
+      p.mentor_employee_id,
+      p.mentor_feedback,
+      p.approved_at,
+      p.created_at
+    FROM projects p
+    JOIN team_members tm
+      ON tm.team_id = p.project_id
+    WHERE tm.enrollment_id = $1
+    ORDER BY p.created_at DESC
+  `;
+
+  const r = await pool.query(q, [enrollmentId]);
+  return r.rows;
+};
+
+// =========================
+// PROJECT DETAIL
+// =========================
+export const findProjectDetailById = async (projectId) => {
+  const q = `
+    SELECT
+      project_id,
+      title,
+      description,
+      tech_stack,
+      status,
+      mentor_employee_id,
+      mentor_feedback,
+      approved_at,
+      created_at
+    FROM projects
+    WHERE project_id = $1
+  `;
+
+  const r = await pool.query(q, [projectId]);
+  return r.rows[0];
+};
+
+/* =========================
+   HELPER: CHECK PROJECT EXISTS
+========================= */
+export const projectExists = async (teamId) => {
+  const q = `
+    SELECT 1
+    FROM projects
+    WHERE project_id = $1
+    LIMIT 1
+  `;
+  const r = await pool.query(q, [teamId]);
+  return r.rowCount > 0;
+};
