@@ -16,24 +16,28 @@ export const insertProject = async ({
   projectId,
   title,
   description,
-  techStack,
+  track,
+  techStack, // array of strings
 }) => {
   const q = `
     INSERT INTO projects (
       project_id,
       title,
       description,
+      track,
       tech_stack
     )
-    VALUES ($1, $2, $3, $4)
+    VALUES ($1, $2, $3, $4, $5::jsonb)
   `;
   await pool.query(q, [
     projectId,
     title,
     description,
-    techStack,
+    track,
+    JSON.stringify(techStack),
   ]);
 };
+
 
 /* =========================
    ADMIN: ASSIGN MENTOR
@@ -137,6 +141,7 @@ export const resubmitProject = async ({
   projectId,
   title,
   description,
+  track,
   techStack,
 }) => {
   const q = `
@@ -144,17 +149,50 @@ export const resubmitProject = async ({
     SET
       title = $2,
       description = $3,
-      tech_stack = $4,
+      track = $4,
+      tech_stack = $5::jsonb,
       status = 'RESUBMITTED',
       mentor_feedback = NULL,
       updated_at = CURRENT_TIMESTAMP
     WHERE project_id = $1
   `;
+
   await pool.query(q, [
     projectId,
     title,
     description,
-    techStack,
+    track,
+    JSON.stringify(techStack),
+  ]);
+};
+
+/* =========================
+   STUDENT: EDIT PROJECT (before approval)
+========================= */
+export const editProjectBeforeApproval = async ({
+  projectId,
+  title,
+  description,
+  track,
+  techStack,
+}) => {
+  const q = `
+    UPDATE projects
+    SET
+      title = $2,
+      description = $3,
+      track = $4,
+      tech_stack = $5::jsonb,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+
+  await pool.query(q, [
+    projectId,
+    title,
+    description,
+    track,
+    JSON.stringify(techStack),
   ]);
 };
 
@@ -221,6 +259,7 @@ export const findProjectDetailById = async (projectId) => {
       project_id,
       title,
       description,
+      track,
       tech_stack,
       status,
       mentor_employee_id,
