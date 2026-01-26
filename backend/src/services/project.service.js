@@ -1,9 +1,11 @@
+import pool from '../config/db.js';
 import {
   findProjectById,
   insertProject,
   assignMentorToProject,
   updateProjectStatusWithFeedback,
   approveProjectByMentor,
+  revokeMentorApproval,
   getPendingProjects,
   getProjectsAssignedToMentor,
   resubmitProject,
@@ -19,6 +21,8 @@ import {
   getTeamMembers,
   isMemberExists,
 } from '../repositories/team.repo.js';
+import { findUserByIdentifier, findUserByEnrollmentId } from '../repositories/user.repo.js';
+import { pushNotification } from './notification.service.js';
 
 
 
@@ -66,6 +70,20 @@ export const createProjectService = async ({
     track,        // ✅ now guaranteed non-null
     techStack,
   });
+
+  // 🔔 Notify all team members
+  const members = await getTeamMembers(teamId);
+  for (const member of members) {
+    const user = await findUserByEnrollmentId(member.enrollment_id);
+    if (user && user.user_key) {
+      await pushNotification({
+        userKey: user.user_key,
+        role: 'student',
+        title: '🚀 Project Created',
+        message: `Project "${title}" has been submitted for review`,
+      });
+    }
+  }
 
   return {
     project_id: teamId,
@@ -144,6 +162,31 @@ export const adminAssignMentorService = async ({
     mentorEmployeeId,
   });
 
+  // 🔔 Notify team members about mentor assignment
+  const members = await getTeamMembers(projectId);
+  for (const member of members) {
+    const user = await findUserByEnrollmentId(member.enrollment_id);
+    if (user && user.user_key) {
+      await pushNotification({
+        userKey: user.user_key,
+        role: 'student',
+        title: '👨‍🏫 Mentor Assigned',
+        message: `Your project has been assigned to a mentor for review`,
+      });
+    }
+  }
+
+  // 🔔 Notify the mentor
+  const mentor = await findUserByIdentifier(mentorEmployeeId);
+  if (mentor) {
+    await pushNotification({
+      userKey: mentor.user_key,
+      role: 'mentor',
+      title: '📝 New Project Assigned',
+      message: `You have been assigned a new project to review`,
+    });
+  }
+
   return {
     project_id: projectId,
     mentor_employee_id: mentorEmployeeId,
@@ -177,7 +220,7 @@ const isWithin24Hours = (approvedAt) => {
 ========================= */
 export const mentorReviewProjectService = async ({
   projectId,
-  action, // APPROVE | REJECT
+  action, // APPROVE | REJECT | REVOKE
   mentorFeedback,
   mentorEmployeeId,
 }) => {
@@ -211,6 +254,39 @@ export const mentorReviewProjectService = async ({
     );
   }
 
+  // 🔄 REVOKE (within 24h of approval)
+  if (action === 'REVOKE') {
+    if (project.status !== 'APPROVED') {
+      throw new Error('Only approved projects can be revoked');
+    }
+
+    if (!isWithin24Hours(project.approved_at)) {
+      throw new Error('24-hour approval window expired. Contact admin.');
+    }
+
+    await revokeMentorApproval(projectId);
+
+    // 🔔 Notify team members about revocation
+    const members = await getTeamMembers(projectId);
+    for (const member of members) {
+      const user = await findUserByEnrollmentId(member.enrollment_id);
+      if (user && user.user_key) {
+        await pushNotification({
+          userKey: user.user_key,
+          role: 'student',
+          title: '⚠️ Approval Revoked',
+          message: `Your project approval has been revoked and is under review again.`,
+        });
+      }
+    }
+
+    return {
+      project_id: projectId,
+      status: 'ASSIGNED_TO_MENTOR',
+      message: 'Approval revoked; project returned to review',
+    };
+  }
+
   // ❌ REJECT
   if (action === 'REJECT') {
     if (!mentorFeedback) {
@@ -223,6 +299,20 @@ export const mentorReviewProjectService = async ({
       mentorFeedback,
     });
 
+    // 🔔 Notify team members about rejection
+    const members = await getTeamMembers(projectId);
+    for (const member of members) {
+      const user = await findUserByEnrollmentId(member.enrollment_id);
+      if (user && user.user_key) {
+        await pushNotification({
+          userKey: user.user_key,
+          role: 'student',
+          title: '❌ Project Rejected',
+          message: `Your project has been rejected. Please review the feedback and resubmit.`,
+        });
+      }
+    }
+
     return {
       project_id: projectId,
       status: 'REJECTED',
@@ -232,6 +322,20 @@ export const mentorReviewProjectService = async ({
   // ✅ APPROVE
   if (action === 'APPROVE') {
     await approveProjectByMentor(projectId);
+
+    // 🔔 Notify team members about approval
+    const members = await getTeamMembers(projectId);
+    for (const member of members) {
+      const user = await findUserByEnrollmentId(member.enrollment_id);
+      if (user && user.user_key) {
+        await pushNotification({
+          userKey: user.user_key,
+          role: 'student',
+          title: '✅ Project Approved!',
+          message: `Congratulations! Your project has been approved by your mentor.`,
+        });
+      }
+    }
 
     return {
       project_id: projectId,
@@ -252,6 +356,7 @@ export const resubmitProjectService = async ({
   description,
   track,
   techStack,
+  requestMentorChange,
   requesterEnrollmentId,
 }) => {
   if (!projectId || !title || !description) {
@@ -280,9 +385,62 @@ export const resubmitProjectService = async ({
     techStack,
   });
 
+  // If student requests mentor change, set status to PENDING for admin reassignment
+  const newStatus = requestMentorChange ? 'PENDING' : 'RESUBMITTED';
+
+  // Update status based on mentor change request
+  if (requestMentorChange) {
+    await pool.query(
+      'UPDATE projects SET status = $1, mentor_employee_id = NULL WHERE project_id = $2',
+      [newStatus, projectId]
+    );
+  }
+
+  // 🔔 Notify based on resubmission type
+  if (requestMentorChange) {
+    // Notify admin about reassignment needed
+    const admins = await pool.query(
+      `SELECT user_key FROM users WHERE role = 'admin'`
+    );
+    for (const admin of admins.rows) {
+      await pushNotification({
+        userKey: admin.user_key,
+        role: 'admin',
+        title: '🔄 Project Resubmitted - Mentor Change Requested',
+        message: `Project ${projectId} has been resubmitted and needs a new mentor assignment.`,
+      });
+    }
+  } else {
+    // Notify original mentor
+    const mentor = await findUserByIdentifier(project.mentor_employee_id);
+    if (mentor) {
+      await pushNotification({
+        userKey: mentor.user_key,
+        role: 'mentor',
+        title: '🔄 Project Resubmitted',
+        message: `A project you previously reviewed has been resubmitted for your review.`,
+      });
+    }
+  }
+
+  // Notify team members
+  const members = await getTeamMembers(projectId);
+  for (const member of members) {
+    const user = await findUserByEnrollmentId(member.enrollment_id);
+    if (user && user.user_key) {
+      await pushNotification({
+        userKey: user.user_key,
+        role: 'student',
+        title: '📤 Project Resubmitted',
+        message: `Your project has been successfully resubmitted for review.`,
+      });
+    }
+  }
+
   return {
     project_id: projectId,
-    status: 'RESUBMITTED',
+    status: newStatus,
+    mentor_change_requested: requestMentorChange || false,
   };
 };
 
@@ -363,6 +521,20 @@ export const activateProjectService = async ({ projectId }) => {
   }
 
   await activateProject(projectId);
+
+  // 🔔 Notify team members about activation
+  const members = await getTeamMembers(projectId);
+  for (const member of members) {
+    const user = await findUserByEnrollmentId(member.enrollment_id);
+    if (user && user.user_key) {
+      await pushNotification({
+        userKey: user.user_key,
+        role: 'student',
+        title: '🎉 Project Activated!',
+        message: `Your project is now active! You can start working on it.`,
+      });
+    }
+  }
 
   return {
     project_id: projectId,

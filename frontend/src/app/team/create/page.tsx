@@ -37,12 +37,13 @@ export default function CreateTeamPage() {
       setTimeout(() => {
         router.push("/team/my-teams");
       }, 1500);
-    } catch (err: any) {
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError("Failed to create team");
-      }
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === "object" && "response" in err
+          ? // @ts-expect-error Axios error shape
+            err.response?.data?.message
+          : null;
+      setError(message || "Failed to create team");
     } finally {
       setLoading(false);
     }

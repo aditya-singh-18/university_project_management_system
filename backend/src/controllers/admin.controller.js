@@ -4,7 +4,12 @@ import {
   addAdminSkillService,
   updateAdminSkillService,
   updateAdminProfileService,
-  deleteAdminSkillService
+  deleteAdminSkillService,
+  adminRegisterUserService,
+  getUserStatisticsService,
+  getAllStudentsService,
+  getAllMentorsService,
+  getAllUsersService
 } from '../services/admin.service.js';
 
 
@@ -103,28 +108,18 @@ export const deleteAdminSkill = async (req, res, next) => {
   }
 };
 
+export const adminRegisterUser = async (req, res, next) => {
+  try {
+    const result = await adminRegisterUserService(req.body);
 
-// import {
-//   getAdminProfileService,
-//   assignMentorService,
-//   adminRegisterUserService
-// } from '../services/admin.service.js';
-
-// /* =========================
-//    ADMIN: REGISTER USER
-// ========================= */
-// export const adminRegisterUser = async (req, res, next) => {
-//   try {
-//     const result = await adminRegisterUserService(req.body);
-
-//     res.status(201).json({
-//       message: 'User registered successfully',
-//       data: result
-//     });
-//   } catch (err) {
-//     next(err);
-//   }
-// };
+    res.status(201).json({
+      message: 'User registered successfully',
+      data: result
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // /* =========================
 //    ADMIN PROFILE
@@ -160,3 +155,60 @@ export const deleteAdminSkill = async (req, res, next) => {
 //     next(err);
 //   }
 // };
+
+/* =========================
+   USER MANAGEMENT: GET STATISTICS
+========================= */
+export const getUserStatistics = async (req, res, next) => {
+  try {
+    const stats = await getUserStatisticsService();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =========================
+   USER MANAGEMENT: GET ALL STUDENTS
+========================= */
+export const getAllStudents = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await getAllStudentsService(page, limit);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =========================
+   USER MANAGEMENT: GET ALL MENTORS
+========================= */
+export const getAllMentors = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await getAllMentorsService(page, limit);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =========================
+   USER MANAGEMENT: GET ALL USERS
+========================= */
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await getAllUsersService(page, limit);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};

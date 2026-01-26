@@ -15,6 +15,12 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
   },
+  "nodemonConfig": {
+    "ignore": [
+      "logs/*",
+      "schema_info.json"
+    ]
+  },
   "devDependencies": {
     "nodemon": "^3.1.11"
   },

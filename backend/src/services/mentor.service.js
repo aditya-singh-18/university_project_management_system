@@ -116,3 +116,29 @@ export const deleteMentorSkillService = async (
 
   return rows[0];
 };
+
+// GET ALL ACTIVE MENTORS (FOR ADMIN)
+export const getActiveMentorsService = async () => {
+  const query = `
+    SELECT
+      mp.employee_id,
+      mp.full_name,
+      mp.official_email,
+      mp.department,
+      mp.designation,
+      mp.contact_number,
+      mp.is_active,
+      mp.created_at,
+      COUNT(p.project_id) as assigned_projects
+    FROM mentor_profiles mp
+    LEFT JOIN projects p
+      ON mp.employee_id = p.mentor_employee_id
+      AND p.status IN ('ASSIGNED_TO_MENTOR', 'APPROVED', 'ACTIVE')
+    WHERE mp.is_active = true
+    GROUP BY mp.employee_id
+    ORDER BY mp.full_name ASC
+  `;
+  
+  const { rows } = await pool.query(query);
+  return rows;
+};

@@ -3,7 +3,8 @@ import {
   getMentorSkillsService,
   addMentorSkillService,
   updateMentorSkillService,
-  deleteMentorSkillService
+  deleteMentorSkillService,
+  getActiveMentorsService
 } from '../services/mentor.service.js';
 
 export const getMentorProfile = async (req, res, next) => {
@@ -80,6 +81,19 @@ export const deleteMentorSkill = async (req, res, next) => {
     );
 
     res.json({ success: true, data: skill, message: 'Skill deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getActiveMentors = async (req, res, next) => {
+  try {
+    const mentors = await getActiveMentorsService();
+    res.json({ 
+      success: true, 
+      data: mentors,
+      count: mentors.length 
+    });
   } catch (err) {
     next(err);
   }

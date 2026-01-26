@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import axios from "@/lib/axios";
+import MentorSelectionModal from "@/components/modals/MentorSelectionModal";
+
+type PendingProject = {
+  project_id: string;
+  title: string;
+  description: string;
+  tech_stack: string[];
+  created_at?: string;
+};
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -10,8 +19,10 @@ export default function AdminDashboardPage() {
     pendingApprovals: 0,
     activeMentors: 0,
   });
-  const [pendingProjects, setPendingProjects] = useState<any[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<PendingProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<PendingProject | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -34,8 +45,19 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleReviewClick = (project: PendingProject) => {
+    setSelectedProject(project);
+    setModalOpen(true);
+  };
+
+  const handleMentorAssigned = () => {
+    // Refresh the pending projects list
+    fetchDashboardData();
+  };
+
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Dashboard Overview</h1>
             <p className="text-slate-600 mt-1">Welcome back, Admin! Here's what's happening today.</p>
@@ -113,12 +135,15 @@ export default function AdminDashboardPage() {
                               📋 {project.project_id}
                             </span>
                             <span className="text-slate-500">
-                              📅 {new Date(project.created_at).toLocaleDateString()}
+                              📅 {project.created_at ? new Date(project.created_at).toLocaleDateString() : 'N/A'}
                             </span>
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 ml-4">
-                          <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-sm font-semibold transition-all">
+                          <button 
+                            onClick={() => handleReviewClick(project)}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-sm font-semibold transition-all"
+                          >
                             Review
                           </button>
                         </div>
@@ -248,10 +273,17 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </div>
-      );
-    }
 
-/* ================= COMPONENTS ================= */
+      <MentorSelectionModal
+        isOpen={modalOpen && !!selectedProject}
+        onClose={() => setModalOpen(false)}
+        projectId={String(selectedProject?.project_id || '')}
+        projectTitle={String(selectedProject?.title || '')}
+        onMentorAssigned={handleMentorAssigned}
+      />
+    </>
+  );
+}
 
 interface StatCardProps {
   title: string;
@@ -262,7 +294,7 @@ interface StatCardProps {
 }
 
 function StatCard({ title, value, icon, color, trend }: StatCardProps) {
-  const colorClasses = {
+  const colorClasses: Record<StatCardProps['color'], string> = {
     blue: 'from-blue-500 to-blue-600',
     green: 'from-green-500 to-green-600',
     yellow: 'from-yellow-500 to-yellow-600',
@@ -285,8 +317,8 @@ function StatCard({ title, value, icon, color, trend }: StatCardProps) {
   );
 }
 
-function QuickActionButton({ icon, label, color }: { icon: string; label: string; color: string }) {
-  const colorClasses: any = {
+function QuickActionButton({ icon, label, color }: { icon: string; label: string; color: 'blue' | 'green' | 'purple' | 'orange' | 'gray' }) {
+  const colorClasses: Record<typeof color, string> = {
     blue: 'hover:bg-blue-50 hover:border-blue-300',
     green: 'hover:bg-green-50 hover:border-green-300',
     purple: 'hover:bg-purple-50 hover:border-purple-300',
@@ -302,8 +334,16 @@ function QuickActionButton({ icon, label, color }: { icon: string; label: string
   );
 }
 
-function ActivityItem({ icon, title, description, time, color }: any) {
-  const colorClasses: any = {
+interface ActivityItemProps {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  time: string;
+  color: 'green' | 'blue' | 'purple' | 'yellow';
+}
+
+function ActivityItem({ icon, title, description, time, color }: ActivityItemProps) {
+  const colorClasses: Record<ActivityItemProps['color'], string> = {
     green: 'bg-green-100 text-green-600',
     blue: 'bg-blue-100 text-blue-600',
     purple: 'bg-purple-100 text-purple-600',
@@ -324,8 +364,14 @@ function ActivityItem({ icon, title, description, time, color }: any) {
   );
 }
 
-function StatusItem({ label, status, color }: any) {
-  const colorClasses: any = {
+interface StatusItemProps {
+  label: string;
+  status: string;
+  color: 'green' | 'blue' | 'red';
+}
+
+function StatusItem({ label, status, color }: StatusItemProps) {
+  const colorClasses: Record<StatusItemProps['color'], string> = {
     green: 'bg-green-100 text-green-700',
     blue: 'bg-blue-100 text-blue-700',
     red: 'bg-red-100 text-red-700',

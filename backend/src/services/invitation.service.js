@@ -15,7 +15,8 @@ import {
   isMemberExists,
   addTeamMember,
 } from '../repositories/team.repo.js';
-import { findUserByIdentifier } from '../repositories/user.repo.js';
+import { findUserByIdentifier, findUserByEnrollmentId } from '../repositories/user.repo.js';
+import { pushNotification } from './notification.service.js';
 
 /**
  * SEND INVITE
@@ -73,6 +74,20 @@ export const sendInviteService = async ({
     invitedByEnrollmentId: requesterEnrollmentId,
   });
 
+  // 🔔 Notify invited student
+  const invitedUser = await findUserByEnrollmentId(invitedEnrollmentId);
+  if (invitedUser && invitedUser.user_key) {
+    console.log('📢 Sending invitation notification to:', invitedUser.user_key);
+    await pushNotification({
+      userKey: invitedUser.user_key,
+      role: 'student',
+      title: '🎉 Team Invitation Received',
+      message: `You have been invited to join team ${teamId}`,
+    });
+  } else {
+    console.warn('⚠️ Could not find user with enrollmentId:', invitedEnrollmentId);
+  }
+
   return {
     team_id: teamId,
     invited_enrollment_id: invitedEnrollmentId,
@@ -117,6 +132,19 @@ export const respondToInviteService = async ({
   // ❌ Reject flow
   if (action === 'REJECT') {
     await updateInvitationStatus(inviteId, 'REJECTED');
+
+    // 🔔 Notify team leader about rejection
+    const leaderUser = await findUserByEnrollmentId(invite.invited_by_enrollment_id);
+    if (leaderUser && leaderUser.user_key) {
+      console.log('📢 Sending rejection notification to leader:', leaderUser.user_key);
+      await pushNotification({
+        userKey: leaderUser.user_key,
+        role: 'student',
+        title: '❌ Invitation Rejected',
+        message: `Your invitation to join team ${invite.team_id} was rejected`,
+      });
+    }
+
     return { status: 'REJECTED' };
   }
 
@@ -163,6 +191,18 @@ if (action === 'ACCEPT') {
 
     // ✅ Update invitation status
     await updateInvitationStatus(inviteId, 'ACCEPTED');
+
+    // 🔔 Notify team leader about acceptance
+    const leaderUser = await findUserByEnrollmentId(invite.invited_by_enrollment_id);
+    if (leaderUser && leaderUser.user_key) {
+      console.log('📢 Sending acceptance notification to leader:', leaderUser.user_key);
+      await pushNotification({
+        userKey: leaderUser.user_key,
+        role: 'student',
+        title: '✅ Invitation Accepted',
+        message: `Your invitation to team ${invite.team_id} was accepted`,
+      });
+    }
 
     await pool.query('COMMIT');
 

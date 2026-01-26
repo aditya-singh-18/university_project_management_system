@@ -1,4 +1,5 @@
 import pool from '../config/db.js'; // ← tum already use kar rahe ho
+import { logQueryResult } from '../utils/dbInspector.js';
 
 // ADMIN PROFILE
 export const getAdminProfileService = async (employeeId) => {
@@ -142,123 +143,231 @@ export const deleteAdminSkillService = async (employeeId, id) => {
   }
 };
 
-// import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
-// import { getAdminProfileByEmployeeId } from '../repositories/admin.repo.js';
-// import {
-//   insertUser,
-//   insertStudentProfile,
-//   insertMentorProfile
-// } from '../repositories/admin.repo.js';
+import { getAdminProfileByEmployeeId } from '../repositories/admin.repo.js';
+import {
+  insertUser,
+  insertStudentProfile,
+  insertMentorProfile,
+  insertAdminProfile
+} from '../repositories/admin.repo.js';
 
-// import { insertAdminProfile } from '../repositories/admin.repo.js';
-// import { findProjectById, assignMentorToProject } from '../repositories/project.repo.js';
+/* =========================
+   ADMIN: REGISTER USER
+========================= */
+export const adminRegisterUserService = async (payload) => {
+  const {
+    user_key,
+    role,
+    email,
+    password,
+    profile
+  } = payload;
 
-// /* =========================
-//    ADMIN: REGISTER USER
-// ========================= */
-// export const adminRegisterUserService = async (payload) => {
-//   const {
-//     user_key,
-//     role,
-//     email,
-//     password,
-//     profile
-//   } = payload;
+  if (!user_key || !role || !email || !password) {
+    throw new Error('Missing required fields');
+  }
 
-//   if (!user_key || !role || !email || !password) {
-//     throw new Error('Missing required fields');
-//   }
+  const password_hash = await bcrypt.hash(password, 10);
 
-//   const password_hash = await bcrypt.hash(password, 10);
+  /* 1️⃣ USERS TABLE */
+  await insertUser({
+    user_key,
+    role,
+    email,
+    password_hash
+  });
 
-//   /* 1️⃣ USERS TABLE */
-//   await insertUser({
-//     user_key,
-//     role,
-//     email,
-//     password_hash
-//   });
+  /* 2️⃣ ROLE PROFILES */
+  if (role === 'STUDENT') {
+    await insertStudentProfile({
+      enrollment_id: user_key,
+      student_email: email,
+      ...profile
+    });
+  }
 
-//   /* 2️⃣ ROLE PROFILES */
-//   if (role === 'STUDENT') {
-//     await insertStudentProfile({
-//       enrollment_id: user_key,
-//       student_email: email,
-//       ...profile
-//     });
-//   }
+  if (role === 'MENTOR') {
+    await insertMentorProfile({
+      employee_id: user_key,
+      official_email: email,
+      ...profile
+    });
+  }
 
-//   if (role === 'MENTOR') {
-//     await insertMentorProfile({
-//       employee_id: user_key,
-//       official_email: email,
-//       ...profile
-//     });
-//   }
+  if (role === 'ADMIN') {
+    await insertAdminProfile({
+      employee_id: user_key,
+      official_email: email,
+      ...profile
+    });
+  }
 
-//   if (role === 'ADMIN') {
-//     await insertAdminProfile({
-//       employee_id: user_key,
-//       official_email: email,
-//       ...profile
-//     });
-//   }
+  return {
+    message: 'User registered successfully',
+    user_key,
+    role
+  };
+};
 
-//   return {
-//     message: 'User registered successfully',
-//     user_key,
-//     role
-//   };
-// };
+/* =========================
+   USER MANAGEMENT: GET STATISTICS
+========================= */
+export const getUserStatisticsService = async () => {
+  const query = `
+    SELECT
+      (SELECT COUNT(*) FROM users WHERE role = 'STUDENT') as total_students,
+      (SELECT COUNT(*) FROM users WHERE role = 'MENTOR') as total_mentors,
+      (SELECT COUNT(*) FROM users WHERE role = 'ADMIN') as total_admins,
+      (SELECT COUNT(*) FROM users) as total_users
+  `;
 
-// /* =========================
-//    ADMIN PROFILE
-// ========================= */
-// export const getAdminProfileService = async (employeeId) => {
-//   if (!employeeId) {
-//     throw new Error('employeeId is required');
-//   }
+  const result = await pool.query(query);
+  return result.rows[0];
+};
 
-//   const profile = await getAdminProfileByEmployeeId(employeeId);
+/* =========================
+   USER MANAGEMENT: GET ALL STUDENTS
+========================= */
+export const getAllStudentsService = async (page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
 
-//   if (!profile) {
-//     throw new Error('Admin profile not found');
-//   }
+  const query = `
+    SELECT
+      u.user_key,
+      u.email,
+      u.created_at,
+      sp.full_name,
+      sp.student_email,
+      sp.department,
+      sp.year,
+      sp.division,
+      sp.roll_number
+    FROM users u
+    LEFT JOIN student_profiles sp ON u.user_key = sp.enrollment_id
+    WHERE u.role = 'STUDENT'
+    ORDER BY u.created_at DESC
+    LIMIT $1 OFFSET $2
+  `;
 
-//   return profile;
-// };
+  const countQuery = `SELECT COUNT(*) as total FROM users WHERE role = 'STUDENT'`;
 
-// /* =========================
-//    ADMIN: ASSIGN MENTOR
-// ========================= */
-// export const assignMentorService = async ({
-//   projectId,
-//   mentorEmployeeId
-// }) => {
-//   if (!projectId || !mentorEmployeeId) {
-//     throw new Error('projectId and mentorEmployeeId are required');
-//   }
+  try {
+    const result = await pool.query(query, [limit, offset]);
+    const countResult = await pool.query(countQuery);
 
-//   const project = await findProjectById(projectId);
-//   if (!project) {
-//     throw new Error('Project not found');
-//   }
+    const responseData = {
+      students: result.rows,
+      total: parseInt(countResult.rows[0].total, 10),
+      page,
+      limit
+    };
 
-//   if (project.status !== 'PENDING') {
-//     throw new Error(
-//       `Mentor cannot be assigned in status ${project.status}`
-//     );
-//   }
+    // Log query result for debugging
+    await logQueryResult('getAllStudents', {
+      params: { page, limit, offset },
+      rowCount: result.rows.length,
+      total: responseData.total
+    });
 
-//   await assignMentorToProject({
-//     projectId,
-//     mentorEmployeeId
-//   });
+    return responseData;
+  } catch (error) {
+    console.error('❌ Error in getAllStudentsService:', error);
+    await logQueryResult('getAllStudents_error', {
+      error: error.message,
+      stack: error.stack,
+      params: { page, limit, offset }
+    });
+    throw error;
+  }
+};
 
-//   return {
-//     project_id: projectId,
-//     mentor_employee_id: mentorEmployeeId,
-//     status: 'ASSIGNED_TO_MENTOR'
-//   };
-// };
+/* =========================
+   USER MANAGEMENT: GET ALL MENTORS
+========================= */
+export const getAllMentorsService = async (page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+
+  const query = `
+    SELECT
+      u.user_key,
+      u.email,
+      u.created_at,
+      mp.full_name,
+      mp.official_email,
+      mp.department,
+      mp.designation
+    FROM users u
+    LEFT JOIN mentor_profiles mp ON u.user_key = mp.employee_id
+    WHERE u.role = 'MENTOR'
+    ORDER BY u.created_at DESC
+    LIMIT $1 OFFSET $2
+  `;
+
+  const countQuery = `SELECT COUNT(*) as total FROM users WHERE role = 'MENTOR'`;
+
+  try {
+    const result = await pool.query(query, [limit, offset]);
+    const countResult = await pool.query(countQuery);
+
+    const responseData = {
+      mentors: result.rows,
+      total: parseInt(countResult.rows[0].total, 10),
+      page,
+      limit
+    };
+
+    // Log query result for debugging
+    await logQueryResult('getAllMentors', {
+      params: { page, limit, offset },
+      rowCount: result.rows.length,
+      total: responseData.total
+    });
+
+    return responseData;
+  } catch (error) {
+    console.error('❌ Error in getAllMentorsService:', error);
+    await logQueryResult('getAllMentors_error', {
+      error: error.message,
+      stack: error.stack,
+      params: { page, limit, offset }
+    });
+    throw error;
+  }
+};
+
+/* =========================
+   USER MANAGEMENT: GET ALL USERS
+========================= */
+export const getAllUsersService = async (page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+
+  const query = `
+    SELECT
+      u.user_key,
+      u.role,
+      u.email,
+      u.created_at,
+      COALESCE(sp.full_name, mp.full_name, ap.full_name) as full_name,
+      COALESCE(sp.department, mp.department, ap.department) as department
+    FROM users u
+    LEFT JOIN student_profiles sp ON u.user_key = sp.enrollment_id
+    LEFT JOIN mentor_profiles mp ON u.user_key = mp.employee_id
+    LEFT JOIN admin_profiles ap ON u.user_key = ap.employee_id
+    ORDER BY u.created_at DESC
+    LIMIT $1 OFFSET $2
+  `;
+
+  const countQuery = `SELECT COUNT(*) as total FROM users`;
+
+  const result = await pool.query(query, [limit, offset]);
+  const countResult = await pool.query(countQuery);
+
+  return {
+    users: result.rows,
+    total: parseInt(countResult.rows[0].total, 10),
+    page,
+    limit
+  };
+};

@@ -105,6 +105,11 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] =
     useState<string | null>(null);
 
+  const profileImage =
+    user && typeof user === "object"
+      ? (user as { profileImage?: string }).profileImage
+      : undefined;
+
   const isInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -291,10 +296,10 @@ export default function ProfilePage() {
                 {/* AVATAR */}
                 <div className="relative w-28 h-28 md:w-32 md:h-32">
                   <div className="w-full h-full rounded-full overflow-hidden border-4 border-slate-100 shadow-sm bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center text-3xl font-bold text-slate-600">
-                    {avatarPreview || (user as any)?.profileImage ? (
+                    {avatarPreview || profileImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={(avatarPreview as string) || (user as any)?.profileImage || ""}
+                        src={(avatarPreview as string) || profileImage || ""}
                         alt={user.name || "avatar"}
                         className="w-full h-full object-cover"
                       />

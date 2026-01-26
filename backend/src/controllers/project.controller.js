@@ -128,14 +128,16 @@ export const getMentorAssignedProjects = async (req, res) => {
 
 export const resubmitProject = async (req, res) => {
   try {
-    const { projectId, title, description, techStack } = req.body;
+    const { projectId, title, description, track, techStack, requestMentorChange } = req.body;
     const requesterEnrollmentId = req.user.user_key;
 
     const result = await resubmitProjectService({
       projectId,
       title,
       description,
+      track,
       techStack,
+      requestMentorChange,
       requesterEnrollmentId,
     });
 

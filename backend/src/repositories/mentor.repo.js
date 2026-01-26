@@ -4,8 +4,8 @@ export const getMentorProfileByEmployeeId = async (employeeId) => {
   const q = `
     SELECT
       mp.employee_id,
-      mp.name,
-      mp.email,
+      mp.full_name,
+      mp.official_email,
       mp.department,
       mp.designation,
       mp.bio,

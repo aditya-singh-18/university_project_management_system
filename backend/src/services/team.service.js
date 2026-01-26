@@ -1,4 +1,5 @@
 import { generateTeamId } from '../utils/teamIdGenerator.js';
+import pool from '../config/db.js';
 
 import {
   insertTeam,
@@ -13,9 +14,11 @@ import {
   getProjectsByTeamId,
 } from '../repositories/team.repo.js';
 
-import { isTeamLeader, isMemberExists, removeTeamMember } from '../repositories/team.repo.js';
+import { isTeamLeader, isMemberExists, removeTeamMember, deleteTeamMembers, deleteTeamInvitations } from '../repositories/team.repo.js';
 import { projectExists } from '../repositories/project.repo.js';
 import { cancelPendingInvite, getInvitationById } from '../repositories/invitation.repo.js';
+import { findUserByIdentifier, findUserByEnrollmentId } from '../repositories/user.repo.js';
+import { pushNotification } from './notification.service.js';
 
 /* =========================
    CREATE TEAM SERVICE
@@ -43,6 +46,17 @@ export const createTeamService = async ({
 
   // 👑 Add leader as team member
   await addTeamMember(teamId, leaderEnrollmentId, true);
+
+  // 🔔 Notify leader
+  const leaderUser = await findUserByEnrollmentId(leaderEnrollmentId);
+  if (leaderUser && leaderUser.user_key) {
+    await pushNotification({
+      userKey: leaderUser.user_key,
+      role: 'student',
+      title: '🎉 Team Created Successfully',
+      message: `Team ${teamId} has been created. You can now invite members!`,
+    });
+  }
 
   return {
     team_id: teamId,
@@ -161,6 +175,17 @@ export const removeTeamMemberService = async ({
     throw new Error('Failed to remove member');
   }
 
+  // 🔔 Notify removed member
+  const removedUser = await findUserByEnrollmentId(memberEnrollmentId);
+  if (removedUser && removedUser.user_key) {
+    await pushNotification({
+      userKey: removedUser.user_key,
+      role: 'student',
+      title: '❌ Removed from Team',
+      message: `You have been removed from team ${teamId}`,
+    });
+  }
+
   return {
     team_id: teamId,
     removed_member: memberEnrollmentId,
@@ -268,6 +293,17 @@ export const leaveTeamService = async ({
 
   if (!removed) {
     throw new Error('Failed to leave team');
+  }
+
+  // 🔔 Notify team leader
+  const leaderUser = await findUserByEnrollmentId(team.leader_enrollment_id);
+  if (leaderUser && leaderUser.user_key) {
+    await pushNotification({
+      userKey: leaderUser.user_key,
+      role: 'student',
+      title: '👋 Member Left Team',
+      message: `A member has left team ${teamId}`,
+    });
   }
 
   return {

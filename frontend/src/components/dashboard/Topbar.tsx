@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, LogOut, User } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/store/auth.store";
 import { useEffect, useRef, useState } from "react";
+import NotificationDropdown from "../NotificationDropdown";
 
 interface TopbarProps {
   title: string;
@@ -62,12 +63,7 @@ export default function Topbar({ title, showSearch = false }: TopbarProps) {
       {/* Right actions */}
       <div className="flex items-center gap-4 shrink-0 relative">
         {/* Notification */}
-        <div className="relative">
-          <Bell />
-          <span className="absolute -top-2 -right-2 bg-red-500 text-xs rounded-full px-1">
-            3
-          </span>
-        </div>
+        <NotificationDropdown />
 
         {/* Avatar + Dropdown */}
         <div ref={dropdownRef} className="relative">

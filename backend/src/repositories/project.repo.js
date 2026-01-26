@@ -93,6 +93,23 @@ export const approveProjectByMentor = async (projectId) => {
 };
 
 /* =========================
+   MENTOR: REVOKE APPROVAL
+   (within 24h window)
+========================= */
+export const revokeMentorApproval = async (projectId) => {
+  const q = `
+    UPDATE projects
+    SET
+      status = 'ASSIGNED_TO_MENTOR',
+      approved_at = NULL,
+      mentor_feedback = NULL,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE project_id = $1
+  `;
+  await pool.query(q, [projectId]);
+};
+
+/* =========================
    ADMIN: VIEW PENDING PROJECTS
 ========================= */
 export const getPendingProjects = async () => {

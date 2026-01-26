@@ -17,12 +17,20 @@ interface ProjectEditForm {
   techStack: string
 }
 
+type ProjectDetails = {
+  project_id: string
+  title: string
+  description: string
+  track: string
+  tech_stack: string[]
+}
+
 export default function ProjectEditPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.projectId as string
 
-  const [project, setProject] = useState<any>(null)
+  const [project, setProject] = useState<ProjectDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,8 +50,13 @@ export default function ProjectEditPage() {
           track: res.project.track,
           techStack: (res.project.tech_stack || []).join(', '),
         })
-      } catch (err: any) {
-        setError(err?.response?.data?.message || 'Failed to fetch project')
+      } catch (err: unknown) {
+        const message =
+          err && typeof err === 'object' && 'response' in err
+            ? // @ts-expect-error Axios error shape
+              err.response?.data?.message
+            : null
+        setError(message || 'Failed to fetch project')
       } finally {
         setLoading(false)
       }
@@ -76,8 +89,13 @@ export default function ProjectEditPage() {
       })
 
       router.push(`/student/my-project/${projectId}`)
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to update project')
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? // @ts-expect-error Axios error shape
+            err.response?.data?.message
+          : null
+      setError(message || 'Failed to update project')
     } finally {
       setSubmitting(false)
     }

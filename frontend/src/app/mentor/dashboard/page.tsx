@@ -1,8 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import StatCard from "@/components/dashboard/StatCard";
 
 export default function MentorDashboardPage() {
+  const router = useRouter();
+
   return (
     <>
       {/* 🔹 Stats Cards */}
@@ -11,6 +14,7 @@ export default function MentorDashboardPage() {
           title="Active Projects"
           value="6"
           bg="from-blue-400 to-blue-600"
+          onClick={() => router.push("/mentor/projects")}
         />
         <StatCard
           title="Skill Match Avg"
@@ -31,7 +35,15 @@ export default function MentorDashboardPage() {
 
       {/* 🔹 Assigned Projects */}
       <div className="glass rounded-2xl p-6 mt-6 category-hover">
-        <h2 className="font-semibold mb-4">Assigned Projects</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">Assigned Projects</h2>
+          <button
+            onClick={() => router.push("/mentor/projects")}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+          >
+            View All →
+          </button>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

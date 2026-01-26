@@ -388,8 +388,12 @@ export default function CreateProjectPage() {
       setLoading(true)
       await createProject(payload)
       router.push('/student/my-project')
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create project')
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String(err.message)
+          : null
+      setError(message || 'Failed to create project')
     } finally {
       setLoading(false)
     }

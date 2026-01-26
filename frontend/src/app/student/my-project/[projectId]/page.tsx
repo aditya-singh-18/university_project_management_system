@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Sidebar from '@/components/sidebar/StudentSidebar'
 import Topbar from '@/components/dashboard/Topbar'
 import UiverseButton from '@/components/ui/uiverse-button'
+import ResubmitProjectModal from '@/components/modals/ResubmitProjectModal'
 
 import { getProjectDetail } from '@/services/project.service'
 
@@ -42,6 +43,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [resubmitModalOpen, setResubmitModalOpen] = useState(false)
 
   /* ================= FETCH PROJECT DETAIL ================= */
   useEffect(() => {
@@ -50,8 +52,13 @@ export default function ProjectDetailPage() {
         setLoading(true)
         const res = await getProjectDetail(projectId)
         setProject(res)
-      } catch (err: any) {
-        setError(err?.response?.data?.message || 'Failed to fetch project')
+      } catch (err: unknown) {
+        const message =
+          err && typeof err === 'object' && 'response' in err
+            ? // @ts-expect-error Axios error shape
+              err.response?.data?.message
+            : null
+        setError(message || 'Failed to fetch project')
       } finally {
         setLoading(false)
       }
@@ -196,15 +203,28 @@ export default function ProjectDetailPage() {
               ← Back
             </UiverseButton>
             
-            {/* Edit Button - Only show if not approved */}
-            {proj.status !== 'APPROVED' && (
-              <button
-                onClick={() => router.push(`/student/my-project/${projectId}/edit`)}
-                className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg"
-              >
-                ✏️ Edit Project
-              </button>
-            )}
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              {/* Resubmit Button - Only show if REJECTED */}
+              {proj.status === 'REJECTED' && (
+                <button
+                  onClick={() => setResubmitModalOpen(true)}
+                  className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  🔄 Resubmit Project
+                </button>
+              )}
+              
+              {/* Edit Button - Only show if not approved */}
+              {proj.status !== 'APPROVED' && proj.status !== 'REJECTED' && (
+                <button
+                  onClick={() => router.push(`/student/my-project/${projectId}/edit`)}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  ✏️ Edit Project
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Main Content Grid */}
@@ -427,6 +447,33 @@ export default function ProjectDetailPage() {
           </div>
         </main>
       </div>
+
+      {/* RESUBMIT PROJECT MODAL */}
+      <ResubmitProjectModal
+        project={proj ? {
+          project_id: proj.project_id,
+          title: proj.title,
+          description: proj.description,
+          tech_stack: proj.tech_stack,
+          track: proj.track,
+          status: proj.status,
+          mentor_feedback: proj.mentor_feedback,
+        } : null}
+        isOpen={resubmitModalOpen}
+        onClose={() => setResubmitModalOpen(false)}
+        onResubmitSuccess={() => {
+          // Refresh project data
+          const fetchProject = async () => {
+            try {
+              const res = await getProjectDetail(projectId)
+              setProject(res)
+            } catch (err: unknown) {
+              console.error('Failed to refresh project:', err)
+            }
+          }
+          fetchProject()
+        }}
+      />
     </div>
   )
 }

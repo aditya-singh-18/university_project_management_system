@@ -5,11 +5,14 @@ import {
   getAdminProfile,
   getAdminSkills,
   addAdminSkill,
-  updateAdminSkill
-} from '../controllers/admin.controller.js';
-import {
+  updateAdminSkill,
+  adminRegisterUser,
   updateAdminProfile,
-  deleteAdminSkill
+  deleteAdminSkill,
+  getUserStatistics,
+  getAllStudents,
+  getAllMentors,
+  getAllUsers
 } from '../controllers/admin.controller.js';
 const router = express.Router();
 
@@ -57,47 +60,41 @@ router.delete(
   deleteAdminSkill
 );
 
+// REGISTER USER (ADMIN ONLY)
+router.post(
+  '/register-user',
+  authenticate,
+  allowRoles('ADMIN'),
+  adminRegisterUser
+);
+
+// USER MANAGEMENT ROUTES
+router.get(
+  '/users/statistics',
+  authenticate,
+  allowRoles('ADMIN'),
+  getUserStatistics
+);
+
+router.get(
+  '/users/students',
+  authenticate,
+  allowRoles('ADMIN'),
+  getAllStudents
+);
+
+router.get(
+  '/users/mentors',
+  authenticate,
+  allowRoles('ADMIN'),
+  getAllMentors
+);
+
+router.get(
+  '/users',
+  authenticate,
+  allowRoles('ADMIN'),
+  getAllUsers
+);
+
 export default router;
-
-// import express from 'express';
-// import { authenticate } from '../middlewares/auth.middleware.js';
-// import { allowRoles } from '../middlewares/role.middleware.js';
-// import {
-//   getAdminProfile,
-//   assignMentorController,
-//   adminRegisterUser   // ✅ correct controller
-// } from '../controllers/admin.controller.js';
-
-// const router = express.Router();
-
-// /* =========================
-//    ADMIN PROFILE
-// ========================= */
-// router.get(
-//   '/admin/profile/:employeeId',
-//   authenticate,
-//   allowRoles('ADMIN'),
-//   getAdminProfile
-// );
-
-// /* =========================
-//    ASSIGN MENTOR
-// ========================= */
-// router.post(
-//   '/admin/assign-mentor',
-//   authenticate,
-//   allowRoles('ADMIN'),
-//   assignMentorController
-// );
-
-// /* =========================
-//    REGISTER USER (ADMIN ONLY)
-// ========================= */
-// router.post(
-//   '/admin/register-user',
-//   authenticate,
-//   allowRoles('ADMIN'),
-//   adminRegisterUser
-// );
-
-// export default router;
