@@ -1,4 +1,4 @@
-# University Project Management System
+# UNIPRO: University Project Management System
 
 A comprehensive web-based platform for managing university projects, enabling seamless collaboration between students, mentors, and administrators.
 
